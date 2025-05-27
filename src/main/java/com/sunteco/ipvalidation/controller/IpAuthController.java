@@ -4,18 +4,16 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Set;
 
 @RestController
 @Slf4j
+@RequestMapping("**")
 public class IpAuthController {
     private static final Set<String> ALLOWED_IPS = Set.of(
-            "192.168.1.10", "10.0.0.5", "127.0.0.1"
+            "192.168.1.10", "10.0.0.5", "127.0.0.1","192.168.1.198"
     );
     @PostMapping
     public ResponseEntity<String> checkAuth(HttpServletRequest request) {
