@@ -1,8 +1,16 @@
 package com.sunteco.ipvalidation.controller;
 
+import com.sunteco.ipvalidation.model.response.AuthorizedResponse;
+import com.sunteco.ipvalidation.model.response.Error;
+import com.sunteco.ipvalidation.model.response.Ok;
+import com.sunteco.ipvalidation.model.request.RequestDetectedInfo;
+import com.sunteco.ipvalidation.repository.IpBucketRepository;
+import com.sunteco.ipvalidation.service.IpBucketService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,47 +20,58 @@ import java.util.Set;
 @Slf4j
 @RequestMapping("**")
 public class IpAuthController {
+    @Autowired
+    private IpBucketService ipBucketService;
+
     private static final Set<String> ALLOWED_IPS = Set.of(
-            "192.168.1.10", "10.0.0.5", "127.0.0.1","192.168.1.198"
+            "192.168.1.10", "10.0.0.5", "127.0.0.1", "192.168.1.198"
     );
-    @PostMapping
-    public ResponseEntity<String> checkAuth(HttpServletRequest request) {
-        log.info("Check: ");
-        String ip = extractClientIp(request);
-        String  bucket = extractBucket(request);
-        log.info("Check bucket: {}", bucket);
-        log.info("IP: {}", ip);
-        if (ALLOWED_IPS.contains(ip)) {
-            return ResponseEntity.ok("Authorized");
+    private Set<String> primaryDomain = Set.of("s3.sunteco.cloud", "localhost:8080");
+    @PostMapping(produces = MediaType.APPLICATION_XML_VALUE)
+    public ResponseEntity<AuthorizedResponse> checkAuth(HttpServletRequest request) {
+        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        log.info("Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
+        if (ipBucketService.isAllowwIp(detectedInfo)) {
+            Ok authorizedResponse = new Ok();
+            authorizedResponse.setAuthorized(true);
+//            authorizedResponse.set("OK");
+            return ResponseEntity.ok(authorizedResponse);
         } else {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Forbidden IP: " + ip);
+            return returnXmlForbidden(detectedInfo);
         }
     }
 
-    @GetMapping
-    public ResponseEntity<String> getCheck(HttpServletRequest request) {
-        log.info("Check: ");
-        String ip = extractClientIp(request);
-        String  bucket = extractBucket(request);
-        log.info("Check bucket: {}", bucket);
-        log.info("IP: {}", ip);
-        if (ALLOWED_IPS.contains(ip)) {
-            return ResponseEntity.ok("Authorized");
+    @GetMapping(produces = MediaType.APPLICATION_XML_VALUE)
+    public ResponseEntity<AuthorizedResponse> getCheck(HttpServletRequest request) {
+        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        log.info("Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
+        if (ipBucketService.isAllowwIp(detectedInfo)) {
+            Ok authorizedResponse = new Ok();
+            authorizedResponse.setAuthorized(true);
+//            authorizedResponse.setCode("OK");
+            return ResponseEntity.ok(authorizedResponse);
         } else {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Forbidden IP: " + ip);
+            return returnXmlForbidden(detectedInfo);
         }
     }
 
-    private String extractClientIp(HttpServletRequest request) {
-        String xfwd = request.getHeader("x-forwarded-for");
-        if (xfwd != null && !xfwd.isBlank()) {
-            return xfwd.split(",")[0].trim(); // lấy IP đầu tiên
-        }
-        return request.getRemoteAddr();
-    }
-    private String extractBucket(HttpServletRequest request) {
-        String bucket = request.getHeader("bucket");
-        log.info("Bucket: {}", bucket);
-        return bucket;
+
+    private ResponseEntity<AuthorizedResponse> returnXmlForbidden(RequestDetectedInfo request) {
+        //TODO return xml
+        /**
+         * <?xml * version="1.0" encoding="UTF-8"?>
+         * <Error>
+         *     <Code>AccessDenied</Code>
+         *     <BucketName>testcloudsync-stc</BucketName>
+         *     <RequestId>tx00000af6018bd5e72e05b-0068368f16-55220ff-default</RequestId>
+         *     <HostId>55220ff-default-default</HostId>
+         * </Error>
+         */
+        Error authorizedResponse = new Error();
+        authorizedResponse.setBucketName(request.getBucket());
+        authorizedResponse.setRequestId(request.getRequestId());
+        authorizedResponse.setHostId(request.getHost());
+        log.info("RequestId: {}", request.getRequestId());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(authorizedResponse);
     }
 }
