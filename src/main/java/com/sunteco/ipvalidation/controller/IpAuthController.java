@@ -23,14 +23,10 @@ public class IpAuthController {
     @Autowired
     private IpBucketService ipBucketService;
 
-    private static final Set<String> ALLOWED_IPS = Set.of(
-            "192.168.1.10", "10.0.0.5", "127.0.0.1", "192.168.1.198"
-    );
-    private Set<String> primaryDomain = Set.of("s3.sunteco.cloud", "localhost:8080");
     @PostMapping(produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> checkAuth(HttpServletRequest request) {
         RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
-        log.info("Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
+        log.info("[POST] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
         if (ipBucketService.isAllowwIp(detectedInfo)) {
             Ok authorizedResponse = new Ok();
             authorizedResponse.setAuthorized(true);
@@ -44,7 +40,74 @@ public class IpAuthController {
     @GetMapping(produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> getCheck(HttpServletRequest request) {
         RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
-        log.info("Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
+        log.info("[GET] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
+        if (ipBucketService.isAllowwIp(detectedInfo)) {
+            Ok authorizedResponse = new Ok();
+            authorizedResponse.setAuthorized(true);
+//            authorizedResponse.setCode("OK");
+            return ResponseEntity.ok(authorizedResponse);
+        } else {
+            return returnXmlForbidden(detectedInfo);
+        }
+    }
+    @PutMapping(produces = MediaType.APPLICATION_XML_VALUE)
+    public ResponseEntity<AuthorizedResponse> putCheck(HttpServletRequest request) {
+        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        log.info("[PUT] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
+        if (ipBucketService.isAllowwIp(detectedInfo)) {
+            Ok authorizedResponse = new Ok();
+            authorizedResponse.setAuthorized(true);
+//            authorizedResponse.setCode("OK");
+            return ResponseEntity.ok(authorizedResponse);
+        } else {
+            return returnXmlForbidden(detectedInfo);
+        }
+    }
+    @DeleteMapping(produces = MediaType.APPLICATION_XML_VALUE)
+    public ResponseEntity<AuthorizedResponse> deleteCheck(HttpServletRequest request) {
+        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        log.info("[DELETE] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
+        if (ipBucketService.isAllowwIp(detectedInfo)) {
+            Ok authorizedResponse = new Ok();
+            authorizedResponse.setAuthorized(true);
+//            authorizedResponse.setCode("OK");
+            return ResponseEntity.ok(authorizedResponse);
+        } else {
+            return returnXmlForbidden(detectedInfo);
+        }
+    }
+
+    @PatchMapping(produces = MediaType.APPLICATION_XML_VALUE)
+    public ResponseEntity<AuthorizedResponse> patchCheck(HttpServletRequest request) {
+        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        log.info("[PATCH] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
+        if (ipBucketService.isAllowwIp(detectedInfo)) {
+            Ok authorizedResponse = new Ok();
+            authorizedResponse.setAuthorized(true);
+//            authorizedResponse.setCode("OK");
+            return ResponseEntity.ok(authorizedResponse);
+        } else {
+            return returnXmlForbidden(detectedInfo);
+        }
+    }
+    @RequestMapping(method = RequestMethod.OPTIONS, produces = MediaType.APPLICATION_XML_VALUE)
+    public ResponseEntity<AuthorizedResponse> optionCheck(HttpServletRequest request) {
+        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        log.info("[OPTION] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
+        if (ipBucketService.isAllowwIp(detectedInfo)) {
+            Ok authorizedResponse = new Ok();
+            authorizedResponse.setAuthorized(true);
+//            authorizedResponse.setCode("OK");
+            return ResponseEntity.ok(authorizedResponse);
+        } else {
+            return returnXmlForbidden(detectedInfo);
+        }
+    }
+
+    @RequestMapping(method = RequestMethod.HEAD, produces = MediaType.APPLICATION_XML_VALUE)
+    public ResponseEntity<AuthorizedResponse> headCheck(HttpServletRequest request) {
+        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        log.info("[HEAD] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
         if (ipBucketService.isAllowwIp(detectedInfo)) {
             Ok authorizedResponse = new Ok();
             authorizedResponse.setAuthorized(true);

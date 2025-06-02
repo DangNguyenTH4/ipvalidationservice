@@ -9,7 +9,8 @@ import lombok.Setter;
 public class Error implements AuthorizedResponse {
     @JsonProperty("Code")
     public String Code = "AccessDenied";
-    //        public Object Message;
+    @JsonProperty("Message")
+    public Object Message = "Blocked by IP validation";
     @JsonProperty("BucketName")
     public String BucketName;
     @JsonProperty("RequestId")

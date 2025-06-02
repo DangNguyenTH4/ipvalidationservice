@@ -11,12 +11,11 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
 
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -24,7 +23,8 @@ import java.util.Set;
 public class IpBucketService {
     @Autowired
     private IpV4RangeService ipV4RangeService;
-    private Set<String> primaryDomain = Set.of("s3.sunteco.cloud", "localhost:8080");
+    @Value("${system.endpoint.primary:s3.sunteco.cloud, localhost:8080}")
+    private Set<String> primaryDomain ;
     public void add(BucketIpAllowRequest request) {
         Set<String> ips = new HashSet<>();
         Set<String> cidrs = new HashSet<>();
@@ -98,7 +98,7 @@ public class IpBucketService {
     private KafkaTemplate kafkaTemplate;
     private void triggerBucketIpCacheUpdate(String bucket, BucketIpCache cache) {
         log.info("Bucket ip cache update triggered.");
-        log.info("Bucket {}, ips {}", bucket, JacksonUtils.write(cache.getIps()));
+        log.info("Bucket {}, ips {}", bucket, JacksonUtils.write(cache));
         //TODO push to kafka to handler at other service
         BucketKafka bucketKafka = new BucketKafka();
         bucketKafka.setBucket(bucket);
@@ -121,6 +121,7 @@ public class IpBucketService {
         }
         // If not setup before, it mean allow all
         if (!IpBucketRepository.bucketAllowIps.containsKey(bucket)) {
+            log.debug("Not setup before so allow");
             return true;
         }
 
