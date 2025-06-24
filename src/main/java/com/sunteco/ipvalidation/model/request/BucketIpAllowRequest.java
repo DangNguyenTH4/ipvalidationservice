@@ -10,9 +10,11 @@ import java.util.Set;
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class BucketIpAllowRequest {
+    private String action; //add, remove, update, list
     private String bucket;
     private Set<String> ips;
     //for update an existed
     private String oldIp;
     private String newIp;
+    private String env;
 }

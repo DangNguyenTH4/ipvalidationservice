@@ -6,6 +6,7 @@ import com.sunteco.ipvalidation.model.response.Ok;
 import com.sunteco.ipvalidation.model.request.RequestDetectedInfo;
 import com.sunteco.ipvalidation.repository.IpBucketRepository;
 import com.sunteco.ipvalidation.service.IpBucketService;
+import com.sunteco.ipvalidation.utils.JacksonUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,97 +28,59 @@ public class IpAuthController {
     public ResponseEntity<AuthorizedResponse> checkAuth(HttpServletRequest request) {
         RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
         log.info("[POST] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
-        if (ipBucketService.isAllowwIp(detectedInfo)) {
-            Ok authorizedResponse = new Ok();
-            authorizedResponse.setAuthorized(true);
-//            authorizedResponse.set("OK");
-            return ResponseEntity.ok(authorizedResponse);
-        } else {
-            return returnXmlForbidden(detectedInfo);
-        }
+        return check(detectedInfo);
     }
 
     @GetMapping(produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> getCheck(HttpServletRequest request) {
         RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
         log.info("[GET] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
-        if (ipBucketService.isAllowwIp(detectedInfo)) {
-            Ok authorizedResponse = new Ok();
-            authorizedResponse.setAuthorized(true);
-//            authorizedResponse.setCode("OK");
-            return ResponseEntity.ok(authorizedResponse);
-        } else {
-            return returnXmlForbidden(detectedInfo);
-        }
+        return check(detectedInfo);
     }
     @PutMapping(produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> putCheck(HttpServletRequest request) {
         RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
         log.info("[PUT] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
-        if (ipBucketService.isAllowwIp(detectedInfo)) {
-            Ok authorizedResponse = new Ok();
-            authorizedResponse.setAuthorized(true);
-//            authorizedResponse.setCode("OK");
-            return ResponseEntity.ok(authorizedResponse);
-        } else {
-            return returnXmlForbidden(detectedInfo);
-        }
+        return check(detectedInfo);
     }
     @DeleteMapping(produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> deleteCheck(HttpServletRequest request) {
         RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
         log.info("[DELETE] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
-        if (ipBucketService.isAllowwIp(detectedInfo)) {
-            Ok authorizedResponse = new Ok();
-            authorizedResponse.setAuthorized(true);
-//            authorizedResponse.setCode("OK");
-            return ResponseEntity.ok(authorizedResponse);
-        } else {
-            return returnXmlForbidden(detectedInfo);
-        }
+        return check(detectedInfo);
     }
 
     @PatchMapping(produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> patchCheck(HttpServletRequest request) {
         RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
         log.info("[PATCH] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
-        if (ipBucketService.isAllowwIp(detectedInfo)) {
-            Ok authorizedResponse = new Ok();
-            authorizedResponse.setAuthorized(true);
-//            authorizedResponse.setCode("OK");
-            return ResponseEntity.ok(authorizedResponse);
-        } else {
-            return returnXmlForbidden(detectedInfo);
-        }
+        return check(detectedInfo);
     }
     @RequestMapping(method = RequestMethod.OPTIONS, produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> optionCheck(HttpServletRequest request) {
         RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
         log.info("[OPTION] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
-        if (ipBucketService.isAllowwIp(detectedInfo)) {
-            Ok authorizedResponse = new Ok();
-            authorizedResponse.setAuthorized(true);
-//            authorizedResponse.setCode("OK");
-            return ResponseEntity.ok(authorizedResponse);
-        } else {
-            return returnXmlForbidden(detectedInfo);
-        }
+        return check(detectedInfo);
     }
 
     @RequestMapping(method = RequestMethod.HEAD, produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> headCheck(HttpServletRequest request) {
         RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
         log.info("[HEAD] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
+        return check(detectedInfo);
+    }
+    private ResponseEntity<AuthorizedResponse> check(RequestDetectedInfo detectedInfo){
         if (ipBucketService.isAllowwIp(detectedInfo)) {
             Ok authorizedResponse = new Ok();
             authorizedResponse.setAuthorized(true);
 //            authorizedResponse.setCode("OK");
+            log.debug("Allow request: {}", JacksonUtils.write(detectedInfo));
             return ResponseEntity.ok(authorizedResponse);
         } else {
+            log.debug("Denied request: {}", JacksonUtils.write(detectedInfo));
             return returnXmlForbidden(detectedInfo);
         }
     }
-
 
     private ResponseEntity<AuthorizedResponse> returnXmlForbidden(RequestDetectedInfo request) {
         //TODO return xml

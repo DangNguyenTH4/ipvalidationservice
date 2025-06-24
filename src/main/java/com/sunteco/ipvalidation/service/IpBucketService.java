@@ -1,11 +1,13 @@
 package com.sunteco.ipvalidation.service;
 
+import com.sunteco.ipvalidation.constant.SystemKafkaTopic;
 import com.sunteco.ipvalidation.model.domain.BucketIpCache;
 import com.sunteco.ipvalidation.model.request.BucketIpAllowRequest;
 import com.sunteco.ipvalidation.model.request.RequestDetectedInfo;
 import com.sunteco.ipvalidation.model.response.BucketIpAllowResponse;
 import com.sunteco.ipvalidation.repository.IpBucketRepository;
 import com.sunteco.ipvalidation.utils.JacksonUtils;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,8 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 @Service
 @Slf4j
@@ -25,6 +26,16 @@ public class IpBucketService {
     private IpV4RangeService ipV4RangeService;
     @Value("${system.endpoint.primary:s3.sunteco.cloud, localhost:8080}")
     private Set<String> primaryDomain ;
+    private String serviceSessionId;
+    @PostConstruct
+    public void init() {
+        log.info("Initializing IpBucketService, send signal get config");
+        this.serviceSessionId = UUID.randomUUID().toString();
+        BucketKafka bucketKafka =  new BucketKafka();
+        bucketKafka.setServiceTransactionId(serviceSessionId);
+        this.kafkaTemplate.send(SystemKafkaTopic.IP_VALIDATION_INSTANCE_INIT, JacksonUtils.write(bucketKafka));
+    }
+
     public void add(BucketIpAllowRequest request) {
         Set<String> ips = new HashSet<>();
         Set<String> cidrs = new HashSet<>();
@@ -103,13 +114,55 @@ public class IpBucketService {
         BucketKafka bucketKafka = new BucketKafka();
         bucketKafka.setBucket(bucket);
         bucketKafka.setCache(cache);
-        kafkaTemplate.send("BUCKET_CACHE_IP_VALIDATION_UPDATE", JacksonUtils.write(bucketKafka));
+        bucketKafka.setServiceTransactionId(serviceSessionId);
+        kafkaTemplate.send(SystemKafkaTopic.BUCKET_CACHE_IP_VALIDATION_UPDATE, JacksonUtils.write(bucketKafka));
     }
+
+    public void handle(BucketIpAllowRequest request) {
+        log.info("Handling bucket ip allow request: {}.", JacksonUtils.write(request));
+        if(request.getAction() == null || request.getAction().isEmpty()) {
+            return;
+        }
+        if("add".equals(request.getAction())) {
+            this.add(request);
+        }else if("remove".equals(request.getAction())) {
+            this.remove(request);
+        }else if("update".equals(request.getAction())) {
+            this.update(request);
+        }
+    }
+
+    public void handle(BucketKafka request) {
+        log.info("Handle bucket kafka request: {}.", JacksonUtils.write(request));
+
+        if (serviceSessionId == null) {
+            log.info("service session id not set, skip handling bucket ip allow request.");
+        }
+        if (!serviceSessionId.equals(request.getServiceTransactionId())) {
+            return;
+        }
+        if (request.getBucket() == null || request.getBucket().isEmpty()) {
+            return;
+        }
+        if (request.getCache() == null) {
+            return;
+        }
+        BucketIpCache cache = new BucketIpCache();
+        if (request.getCache().getIps() != null) {
+            cache.setIps(request.cache.getIps());
+        }
+        if (request.getCache().getCidrs() != null) {
+            cache.setCidrs(request.cache.getCidrs());
+        }
+        IpBucketRepository.bucketAllowIps.put(request.getBucket(), cache);
+    }
+
     @Getter
     @Setter
     public static class BucketKafka{
         private String bucket;
         private BucketIpCache cache;
+        private String serviceTransactionId;
     }
 
 
@@ -125,13 +178,14 @@ public class IpBucketService {
             return true;
         }
 
-        if (IpBucketRepository.bucketAllowIps.get(bucket).getIps().contains(ip)) {
+        if (IpBucketRepository.bucketAllowIps.get(bucket).getIps() != null && IpBucketRepository.bucketAllowIps.get(bucket).getIps().contains(ip)) {
             return true;
         }
-
-        for (String cidr : IpBucketRepository.bucketAllowIps.get(bucket).getCidrs()) {
-            if(ipV4RangeService.isInRange(ip, cidr)) {
-                return true;
+        if(IpBucketRepository.bucketAllowIps.get(bucket).getCidrs() != null) {
+            for (String cidr : IpBucketRepository.bucketAllowIps.get(bucket).getCidrs()) {
+                if (ipV4RangeService.isInRange(ip, cidr)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -162,6 +216,7 @@ public class IpBucketService {
 
     private String getBucketFromPath(HttpServletRequest request) {
         String path = request.getRequestURI();
+        log.info("Path {}", path);
         if (path == null || path.isEmpty() || path.equals("/")) {
             return "";
         }
@@ -169,6 +224,7 @@ public class IpBucketService {
             path = path.substring(1);
         }
         String[] parts = path.split("/");
+        log.info("Parts {}", JacksonUtils.write(parts));
         return parts[0];
     }
 
@@ -176,6 +232,7 @@ public class IpBucketService {
         return null;
     }
     public RequestDetectedInfo detectIp(HttpServletRequest request) {
+        log(request);
         String ip = extractClientIp(request);
         String bucket = extractBucket(request);
         RequestDetectedInfo detectedInfo = new RequestDetectedInfo();
@@ -185,5 +242,49 @@ public class IpBucketService {
         detectedInfo.setHost(request.getHeader("host"));
         detectedInfo.setRequestUri(request.getRequestURL().toString());
         return detectedInfo;
+    }
+
+    public static void log(HttpServletRequest request) {
+        log.debug("========== 🐾 HTTP REQUEST DEBUG INFO ==========");
+
+        // 🎯 IP
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        String xRealIp = request.getHeader("X-Real-IP");
+        String remoteAddr = request.getRemoteAddr();
+
+        String clientIp = xForwardedFor != null && !xForwardedFor.isEmpty()
+                ? xForwardedFor
+                : (xRealIp != null && !xRealIp.isEmpty() ? xRealIp : remoteAddr);
+
+        log.debug("➡️  [Client IP]            " + clientIp);
+        log.debug("🔁 X-Forwarded-For:        " + JacksonUtils.write(xForwardedFor));
+        log.debug("🔁 X-Real-IP:              " + JacksonUtils.write(xRealIp));
+        log.debug("🔁 RemoteAddr:             " + remoteAddr);
+
+        // 📄 Method, URI
+        log.debug("📝 Method:                 " + request.getMethod());
+        log.debug("🔗 URI:                    " + request.getRequestURI());
+        log.debug("🔍 Query String:           " + request.getQueryString());
+
+        // 🧠 Protocol, Encoding
+        log.debug("📡 Protocol:               " + request.getProtocol());
+        log.debug("🈳 Content Type:           " + request.getContentType());
+        log.debug("🔤 Character Encoding:     " + request.getCharacterEncoding());
+
+        // 📦 Headers
+        log.debug("📦 Headers:");
+        Enumeration<String> headerNames = request.getHeaderNames();
+        while (headerNames.hasMoreElements()) {
+            String name = headerNames.nextElement();
+            log.debug("    🧷 " + name + ": " + request.getHeader(name));
+        }
+
+        // 🧾 Parameters
+        log.debug("🧾 Parameters:");
+        for (Map.Entry<String, String[]> entry : request.getParameterMap().entrySet()) {
+            log.debug("    ✏️ " + entry.getKey() + ": " + String.join(", ", entry.getValue()));
+        }
+
+        log.debug("===============================================");
     }
 }
