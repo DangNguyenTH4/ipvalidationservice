@@ -15,4 +15,7 @@ public class BucketIpAllowResponse {
     //for update an existed
     private String oldIp;
     private String newIp;
+
+    private String success;
+    private String action;
 }

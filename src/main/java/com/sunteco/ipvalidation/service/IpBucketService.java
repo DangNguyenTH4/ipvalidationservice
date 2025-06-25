@@ -16,7 +16,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
+import java.sql.Array;
 import java.util.*;
 
 @Service
@@ -98,13 +100,64 @@ public class IpBucketService {
         BucketIpAllowResponse response = new BucketIpAllowResponse();
         response.setBucket(request.getBucket());
         if (IpBucketRepository.bucketAllowIps.containsKey(request.getBucket())) {
-            response.setIps(IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps());
-            response.getIps().addAll(IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs());
+            if(!CollectionUtils.isEmpty(IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps())) {
+                response.setIps(IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps());
+            }
+            if(!CollectionUtils.isEmpty(IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs())) {
+                response.getIps().addAll(IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs());
+            }
         } else {
             response.setIps(new HashSet<>());
         }
         return response;
     }
+
+    public void updateBatch(BucketIpAllowRequest request) {
+
+        if (!IpBucketRepository.bucketAllowIps.containsKey(request.getBucket())) {
+            return;
+        }
+
+        if (IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs() == null) {
+            IpBucketRepository.bucketAllowIps.get(request.getBucket()).setCidrs(new HashSet<>());
+        }
+
+        if (IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps() == null) {
+            IpBucketRepository.bucketAllowIps.get(request.getBucket()).setIps(new HashSet<>());
+        }
+
+        if(!CollectionUtils.isEmpty(request.getRemovedIps())) {
+            Set<String> ipsRemove = new HashSet<>();
+            Set<String> cidrsRemove = new HashSet<>();
+            for (String ip : request.getRemovedIps()) {
+                if (ipV4RangeService.isValidCIDR(ip)) {
+                    cidrsRemove.add(ip);
+                } else {
+                    ipsRemove.add(ip);
+                }
+            }
+            IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs().removeAll(cidrsRemove);
+            IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps().removeAll(ipsRemove);
+        }
+
+        if(!CollectionUtils.isEmpty(request.getAddedIps())) {
+            Set<String> ipsAdd = new HashSet<>();
+            Set<String> cidrsAdd = new HashSet<>();
+            for (String ip : request.getAddedIps()) {
+                if (ipV4RangeService.isValidCIDR(ip)) {
+                    cidrsAdd.add(ip);
+                } else {
+                    ipsAdd.add(ip);
+                }
+            }
+            IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs().addAll(cidrsAdd);
+            IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps().addAll(ipsAdd);
+        }
+
+        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketAllowIps.get(request.getBucket()));
+
+    }
+
     @Autowired
     private KafkaTemplate kafkaTemplate;
     private void triggerBucketIpCacheUpdate(String bucket, BucketIpCache cache) {
@@ -129,6 +182,12 @@ public class IpBucketService {
             this.remove(request);
         }else if("update".equals(request.getAction())) {
             this.update(request);
+        }else if("list".equals(request.getAction())) {
+            BucketIpAllowResponse response = this.list(request);
+            response.setAction("list");
+            kafkaTemplate.send(SystemKafkaTopic.BUCKET_CACHE_IP_VALIDATION_LIST, JacksonUtils.write(response));
+        }else if("updateBatch".equals(request.getAction())) {
+            this.updateBatch(request);
         }
     }
 

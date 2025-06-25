@@ -16,5 +16,7 @@ public class BucketIpAllowRequest {
     //for update an existed
     private String oldIp;
     private String newIp;
+    private Set<String> addedIps;
+    private Set<String> removedIps;
     private String env;
 }
