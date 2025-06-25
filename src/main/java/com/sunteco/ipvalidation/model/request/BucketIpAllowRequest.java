@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.Set;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -12,6 +13,7 @@ import java.util.Set;
 public class BucketIpAllowRequest {
     private String action; //add, remove, update, list
     private String bucket;
+    public Boolean enable;
     private Set<String> ips;
     //for update an existed
     private String oldIp;
@@ -19,4 +21,5 @@ public class BucketIpAllowRequest {
     private Set<String> addedIps;
     private Set<String> removedIps;
     private String env;
+    private String requestId = UUID.randomUUID().toString();
 }

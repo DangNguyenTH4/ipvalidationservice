@@ -173,22 +173,38 @@ public class IpBucketService {
 
     public void handle(BucketIpAllowRequest request) {
         log.info("Handling bucket ip allow request: {}.", JacksonUtils.write(request));
-        if(request.getAction() == null || request.getAction().isEmpty()) {
+        if (request.getAction() == null || request.getAction().isEmpty()) {
             return;
         }
-        if("add".equals(request.getAction())) {
+        BucketIpAllowResponse response = new BucketIpAllowResponse();
+        response.setSuccess("SUCCESS");
+        response.setBucket(request.getBucket());
+        response.setRequestId(request.getRequestId());
+        response.setAction(request.getAction());
+        if ("add".equals(request.getAction())) {
             this.add(request);
-        }else if("remove".equals(request.getAction())) {
+        } else if ("remove".equals(request.getAction())) {
             this.remove(request);
-        }else if("update".equals(request.getAction())) {
+        } else if ("update".equals(request.getAction())) {
             this.update(request);
-        }else if("list".equals(request.getAction())) {
-            BucketIpAllowResponse response = this.list(request);
+        } else if ("list".equals(request.getAction())) {
+            response = this.list(request);
+            response.setSuccess("SUCCESS");
             response.setAction("list");
-            kafkaTemplate.send(SystemKafkaTopic.BUCKET_CACHE_IP_VALIDATION_LIST, JacksonUtils.write(response));
-        }else if("updateBatch".equals(request.getAction())) {
+            response.setRequestId(request.getRequestId());
+        } else if ("updateBatch".equals(request.getAction())) {
             this.updateBatch(request);
+        } else if ("disable".equals(request.getAction())) {
+            this.disable(request);
         }
+        kafkaTemplate.send(SystemKafkaTopic.BUCKET_ALLOWED_IP_SETTING_RESULT, JacksonUtils.write(response));
+    }
+
+    private void disable(BucketIpAllowRequest request) {
+        if (!IpBucketRepository.bucketAllowIps.containsKey(request.getBucket())) {
+            return;
+        }
+        IpBucketRepository.bucketAllowIps.remove(request.getBucket());
     }
 
     public void handle(BucketKafka request) {

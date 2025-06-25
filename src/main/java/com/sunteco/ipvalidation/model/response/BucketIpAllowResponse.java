@@ -18,4 +18,5 @@ public class BucketIpAllowResponse {
 
     private String success;
     private String action;
+    private String requestId;
 }
