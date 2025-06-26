@@ -1,6 +1,7 @@
 package com.sunteco.ipvalidation.service;
 
 import com.sunteco.ipvalidation.constant.SystemKafkaTopic;
+import com.sunteco.ipvalidation.exception.IpBlockedException;
 import com.sunteco.ipvalidation.model.domain.BucketIpCache;
 import com.sunteco.ipvalidation.model.request.BucketIpAllowRequest;
 import com.sunteco.ipvalidation.model.request.RequestDetectedInfo;
@@ -12,13 +13,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.InvalidPropertyException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import java.sql.Array;
 import java.util.*;
 
 @Service
@@ -48,21 +49,21 @@ public class IpBucketService {
                 ips.add(ip);
             }
         }
-        if (IpBucketRepository.bucketAllowIps.containsKey(request.getBucket())) {
-            BucketIpCache cache = IpBucketRepository.bucketAllowIps.get(request.getBucket());
+        if (IpBucketRepository.bucketBlockedIps.containsKey(request.getBucket())) {
+            BucketIpCache cache = IpBucketRepository.bucketBlockedIps.get(request.getBucket());
             cache.getIps().addAll(ips);
             cache.getCidrs().addAll(cidrs);
         } else {
             BucketIpCache cache = new BucketIpCache();
             cache.setIps(ips);
             cache.setCidrs(cidrs);
-            IpBucketRepository.bucketAllowIps.put(request.getBucket(), cache);
+            IpBucketRepository.bucketBlockedIps.put(request.getBucket(), cache);
         }
-        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketAllowIps.get(request.getBucket()));
+        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockedIps.get(request.getBucket()));
     }
 
     public void remove(BucketIpAllowRequest request) {
-        if (!IpBucketRepository.bucketAllowIps.containsKey(request.getBucket())) {
+        if (!IpBucketRepository.bucketBlockedIps.containsKey(request.getBucket())) {
             return;
         }
         Set<String> ips = new HashSet<>();
@@ -74,37 +75,37 @@ public class IpBucketService {
                 ips.add(ip);
             }
         }
-        IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs().removeAll(cidrs);
-        IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps().removeAll(ips);
-        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketAllowIps.get(request.getBucket()));
+        IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getCidrs().removeAll(cidrs);
+        IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getIps().removeAll(ips);
+        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockedIps.get(request.getBucket()));
     }
 
     public void update(BucketIpAllowRequest request) {
-        if (!IpBucketRepository.bucketAllowIps.containsKey(request.getBucket())) {
+        if (!IpBucketRepository.bucketBlockedIps.containsKey(request.getBucket())) {
             return;
         }
         if (ipV4RangeService.isValidCIDR(request.getOldIp())) {
-            IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs().remove(request.getOldIp());
+            IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getCidrs().remove(request.getOldIp());
         } else {
-            IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps().remove(request.getOldIp());
+            IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getIps().remove(request.getOldIp());
         }
         if (ipV4RangeService.isValidCIDR(request.getNewIp())) {
-            IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs().remove(request.getNewIp());
+            IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getCidrs().remove(request.getNewIp());
         } else {
-            IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps().remove(request.getNewIp());
+            IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getIps().remove(request.getNewIp());
         }
-        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketAllowIps.get(request.getBucket()));
+        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockedIps.get(request.getBucket()));
     }
 
     public BucketIpAllowResponse list(BucketIpAllowRequest request) {
         BucketIpAllowResponse response = new BucketIpAllowResponse();
         response.setBucket(request.getBucket());
-        if (IpBucketRepository.bucketAllowIps.containsKey(request.getBucket())) {
-            if(!CollectionUtils.isEmpty(IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps())) {
-                response.setIps(IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps());
+        if (IpBucketRepository.bucketBlockedIps.containsKey(request.getBucket())) {
+            if(!CollectionUtils.isEmpty(IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getIps())) {
+                response.setIps(IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getIps());
             }
-            if(!CollectionUtils.isEmpty(IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs())) {
-                response.getIps().addAll(IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs());
+            if(!CollectionUtils.isEmpty(IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getCidrs())) {
+                response.getIps().addAll(IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getCidrs());
             }
         } else {
             response.setIps(new HashSet<>());
@@ -114,16 +115,17 @@ public class IpBucketService {
 
     public void updateBatch(BucketIpAllowRequest request) {
 
-        if (!IpBucketRepository.bucketAllowIps.containsKey(request.getBucket())) {
-            return;
+        if (!IpBucketRepository.bucketBlockedIps.containsKey(request.getBucket())) {
+            BucketIpCache cache = new BucketIpCache(new HashSet<>(), new HashSet<>());
+            IpBucketRepository.bucketBlockedIps.put(request.getBucket(), cache);
         }
 
-        if (IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs() == null) {
-            IpBucketRepository.bucketAllowIps.get(request.getBucket()).setCidrs(new HashSet<>());
+        if (IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getCidrs() == null) {
+            IpBucketRepository.bucketBlockedIps.get(request.getBucket()).setCidrs(new HashSet<>());
         }
 
-        if (IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps() == null) {
-            IpBucketRepository.bucketAllowIps.get(request.getBucket()).setIps(new HashSet<>());
+        if (IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getIps() == null) {
+            IpBucketRepository.bucketBlockedIps.get(request.getBucket()).setIps(new HashSet<>());
         }
 
         if(!CollectionUtils.isEmpty(request.getRemovedIps())) {
@@ -136,8 +138,8 @@ public class IpBucketService {
                     ipsRemove.add(ip);
                 }
             }
-            IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs().removeAll(cidrsRemove);
-            IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps().removeAll(ipsRemove);
+            IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getCidrs().removeAll(cidrsRemove);
+            IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getIps().removeAll(ipsRemove);
         }
 
         if(!CollectionUtils.isEmpty(request.getAddedIps())) {
@@ -150,11 +152,11 @@ public class IpBucketService {
                     ipsAdd.add(ip);
                 }
             }
-            IpBucketRepository.bucketAllowIps.get(request.getBucket()).getCidrs().addAll(cidrsAdd);
-            IpBucketRepository.bucketAllowIps.get(request.getBucket()).getIps().addAll(ipsAdd);
+            IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getCidrs().addAll(cidrsAdd);
+            IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getIps().addAll(ipsAdd);
         }
 
-        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketAllowIps.get(request.getBucket()));
+        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockedIps.get(request.getBucket()));
 
     }
 
@@ -201,35 +203,35 @@ public class IpBucketService {
     }
 
     private void disable(BucketIpAllowRequest request) {
-        if (!IpBucketRepository.bucketAllowIps.containsKey(request.getBucket())) {
+        if (!IpBucketRepository.bucketBlockedIps.containsKey(request.getBucket())) {
             return;
         }
-        IpBucketRepository.bucketAllowIps.remove(request.getBucket());
+        IpBucketRepository.bucketBlockedIps.remove(request.getBucket());
     }
 
-    public void handle(BucketKafka request) {
-        log.info("Handle bucket kafka request: {}.", JacksonUtils.write(request));
+    public void handle(BucketKafka bucketConfig) {
+        log.info("Handle bucket kafka request: {}.", JacksonUtils.write(bucketConfig));
 
         if (serviceSessionId == null) {
             log.info("service session id not set, skip handling bucket ip allow request.");
         }
-        if (!serviceSessionId.equals(request.getServiceTransactionId())) {
+        if (!serviceSessionId.equals(bucketConfig.getServiceTransactionId())) {
             return;
         }
-        if (request.getBucket() == null || request.getBucket().isEmpty()) {
+        if (bucketConfig.getBucket() == null || bucketConfig.getBucket().isEmpty()) {
             return;
         }
-        if (request.getCache() == null) {
+        if (bucketConfig.getCache() == null) {
             return;
         }
         BucketIpCache cache = new BucketIpCache();
-        if (request.getCache().getIps() != null) {
-            cache.setIps(request.cache.getIps());
+        if (bucketConfig.getCache().getIps() != null) {
+            cache.setIps(bucketConfig.getCache().getIps());
         }
-        if (request.getCache().getCidrs() != null) {
-            cache.setCidrs(request.cache.getCidrs());
+        if (bucketConfig.getCache().getCidrs() != null) {
+            cache.setCidrs(bucketConfig.getCache().getCidrs());
         }
-        IpBucketRepository.bucketAllowIps.put(request.getBucket(), cache);
+        IpBucketRepository.bucketBlockedIps.put(bucketConfig.getBucket(), cache);
     }
 
     @Getter
@@ -241,29 +243,70 @@ public class IpBucketService {
     }
 
 
-    public boolean isAllowwIp(RequestDetectedInfo request) {
+    public boolean isBlocked(RequestDetectedInfo request) {
+        try {
+            checkIsBlockWithListBlockIps(request);
+            checkIsBlockWithNotInIpAddress(request);
+            return false;
+        }catch (IpBlockedException e) {
+            return true;
+        }
+    }
+
+    private boolean checkIsBlockWithListBlockIps(RequestDetectedInfo request) {
         String ip = request.getIp();
         String bucket = request.getBucket();
+        boolean blocked = false;
         if ("".equals(bucket)) {
-            return true;
+            blocked = false; // khong detect duoc bucket
+            return blocked;
         }
         // If not setup before, it mean allow all
-        if (!IpBucketRepository.bucketAllowIps.containsKey(bucket)) {
+        if (!IpBucketRepository.bucketBlockedIps.containsKey(bucket)) {
             log.debug("Not setup before so allow");
-            return true;
+            blocked = false;
+            return blocked;
         }
 
-        if (IpBucketRepository.bucketAllowIps.get(bucket).getIps() != null && IpBucketRepository.bucketAllowIps.get(bucket).getIps().contains(ip)) {
-            return true;
+
+        if (IpBucketRepository.bucketBlockedIps.get(bucket).getIps() != null
+                && IpBucketRepository.bucketBlockedIps.get(bucket).getIps().contains(ip)) {
+            blocked = true;
+            throw new IpBlockedException(String.format("IP %s is blocked because it contain in block list, when access bucket: %s",ip, bucket));
         }
-        if(IpBucketRepository.bucketAllowIps.get(bucket).getCidrs() != null) {
-            for (String cidr : IpBucketRepository.bucketAllowIps.get(bucket).getCidrs()) {
+
+        if(IpBucketRepository.bucketBlockedIps.get(bucket).getCidrs() != null) {
+            for (String cidr : IpBucketRepository.bucketBlockedIps.get(bucket).getCidrs()) {
                 if (ipV4RangeService.isInRange(ip, cidr)) {
-                    return true;
+                    throw new IpBlockedException(String.format("IP %s is blocked because it is part of cidr: %ss, when access bucket: %s",ip, cidr, bucket));
                 }
             }
         }
         return false;
+    }
+    private boolean checkIsBlockWithNotInIpAddress(RequestDetectedInfo request) {
+        String ip = request.getIp();
+        String bucket = request.getBucket();
+        //not set
+        if(!IpBucketRepository.bucketBlockIpsNotIn.containsKey(bucket)) {
+            return false;
+        }
+
+        if (IpBucketRepository.bucketBlockIpsNotIn.get(bucket).getIps() != null
+                && IpBucketRepository.bucketBlockIpsNotIn.get(bucket).getIps().contains(ip)) {
+            return false;
+        }
+
+        if(IpBucketRepository.bucketBlockIpsNotIn.get(bucket).getCidrs() != null) {
+            for (String cidr : IpBucketRepository.bucketBlockIpsNotIn.get(bucket).getCidrs()) {
+                if (ipV4RangeService.isInRange(ip, cidr)) {
+                    return false;
+                }
+            }
+        }
+
+        throw new IpBlockedException(String.format("IP %s is blocked because not in list rejects, when access bucket: %s",ip, bucket));
+
     }
 
     private String extractClientIp(HttpServletRequest request) {

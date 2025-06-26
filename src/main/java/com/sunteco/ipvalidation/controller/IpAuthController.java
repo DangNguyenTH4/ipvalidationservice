@@ -4,7 +4,6 @@ import com.sunteco.ipvalidation.model.response.AuthorizedResponse;
 import com.sunteco.ipvalidation.model.response.Error;
 import com.sunteco.ipvalidation.model.response.Ok;
 import com.sunteco.ipvalidation.model.request.RequestDetectedInfo;
-import com.sunteco.ipvalidation.repository.IpBucketRepository;
 import com.sunteco.ipvalidation.service.IpBucketService;
 import com.sunteco.ipvalidation.utils.JacksonUtils;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,8 +13,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Set;
 
 @RestController
 @Slf4j
@@ -70,15 +67,15 @@ public class IpAuthController {
         return check(detectedInfo);
     }
     private ResponseEntity<AuthorizedResponse> check(RequestDetectedInfo detectedInfo){
-        if (ipBucketService.isAllowwIp(detectedInfo)) {
+        if (ipBucketService.isBlocked(detectedInfo)) {
+            log.debug("Denied request: {}", JacksonUtils.write(detectedInfo));
+            return returnXmlForbidden(detectedInfo);
+        } else {
             Ok authorizedResponse = new Ok();
             authorizedResponse.setAuthorized(true);
 //            authorizedResponse.setCode("OK");
             log.debug("Allow request: {}", JacksonUtils.write(detectedInfo));
             return ResponseEntity.ok(authorizedResponse);
-        } else {
-            log.debug("Denied request: {}", JacksonUtils.write(detectedInfo));
-            return returnXmlForbidden(detectedInfo);
         }
     }
 
