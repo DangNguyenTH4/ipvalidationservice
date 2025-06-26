@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.sunteco.ipvalidation.constant.SystemKafkaTopic;
 import com.sunteco.ipvalidation.model.request.BucketIpAllowRequest;
+import com.sunteco.ipvalidation.model.request.BucketIpBlockRequest;
 import com.sunteco.ipvalidation.service.IpBucketService;
 import com.sunteco.ipvalidation.utils.JacksonUtils;
 import org.slf4j.Logger;
@@ -46,6 +47,20 @@ public class SystemKafkaListener {
         objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
+    @KafkaListener(topics = SystemKafkaTopic.BUCKET_BLOCKED_IP_SETTING)
+    void handleBucketIpBlockSettingAction(@Payload String message) {
+        try {
+            logger.info("BUCKET_BLOCKED_IP_SETTING event message: {}", message);
+            BucketIpBlockRequest request = JacksonUtils.readValue(message, BucketIpBlockRequest.class);
+            if (!systemEnvironment.equals(request.getEnv())) {
+                return;
+            }
+            ipBucketService.handle(request);
+        } catch (Exception e) {
+            logger.error("cannot handle message BUCKET_BLOCKED_IP_SETTING {}", message);
+            e.printStackTrace();
+        }
+    }
     @KafkaListener(topics = SystemKafkaTopic.BUCKET_ALLOWED_IP_SETTING)
     void handleBucketIpAllowSettingAction(@Payload String message) {
         try {
