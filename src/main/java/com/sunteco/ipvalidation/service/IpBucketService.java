@@ -1,6 +1,7 @@
 package com.sunteco.ipvalidation.service;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.sunteco.ipvalidation.constant.BucketConstant;
 import com.sunteco.ipvalidation.constant.SystemKafkaTopic;
 import com.sunteco.ipvalidation.exception.IpBlockedException;
 import com.sunteco.ipvalidation.model.domain.BucketIpCache;
@@ -37,7 +38,8 @@ public class IpBucketService {
         this.serviceSessionId = UUID.randomUUID().toString();
         BucketKafka bucketKafka =  new BucketKafka();
         bucketKafka.setServiceTransactionId(serviceSessionId);
-        this.kafkaTemplate.send(SystemKafkaTopic.IP_VALIDATION_INSTANCE_INIT, JacksonUtils.write(bucketKafka));
+        this.kafkaTemplate.send(SystemKafkaTopic.IP_VALIDATION_INSTANCE_INIT_BLOCK, JacksonUtils.write(bucketKafka));
+        this.kafkaTemplate.send(SystemKafkaTopic.IP_VALIDATION_INSTANCE_INIT_ALLOW, JacksonUtils.write(bucketKafka));
     }
 
     public void add(BucketIpBlockRequest request) {
@@ -60,7 +62,7 @@ public class IpBucketService {
             cache.setCidrs(cidrs);
             IpBucketRepository.bucketBlockedIps.put(request.getBucket(), cache);
         }
-        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockedIps.get(request.getBucket()), "Deny");
+        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockedIps.get(request.getBucket()), BucketConstant.BucketPolicyName.Deny.name());
     }
 
     public void remove(BucketIpBlockRequest request) {
@@ -78,7 +80,7 @@ public class IpBucketService {
         }
         IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getCidrs().removeAll(cidrs);
         IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getIps().removeAll(ips);
-        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockedIps.get(request.getBucket()), "Deny");
+        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockedIps.get(request.getBucket()), BucketConstant.BucketPolicyName.Deny.name());
     }
 
     public void update(BucketIpBlockRequest request) {
@@ -95,7 +97,7 @@ public class IpBucketService {
         } else {
             IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getIps().remove(request.getNewIp());
         }
-        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockedIps.get(request.getBucket()), "Deny");
+        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockedIps.get(request.getBucket()), BucketConstant.BucketPolicyName.Deny.name());
     }
 
     public BucketIpAllowResponse list(BucketIpBlockRequest request) {
@@ -173,7 +175,7 @@ public class IpBucketService {
             IpBucketRepository.bucketBlockedIps.get(request.getBucket()).getIps().addAll(ipsAdd);
         }
 
-        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockedIps.get(request.getBucket()), "Deny");
+        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockedIps.get(request.getBucket()), BucketConstant.BucketPolicyName.Deny.name());
 
     }
 
@@ -221,7 +223,7 @@ public class IpBucketService {
             IpBucketRepository.bucketBlockIpsNotIn.get(request.getBucket()).getIps().addAll(ipsAdd);
         }
 
-        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockIpsNotIn.get(request.getBucket()), "Allow");
+        this.triggerBucketIpCacheUpdate(request.getBucket(), IpBucketRepository.bucketBlockIpsNotIn.get(request.getBucket()), BucketConstant.BucketPolicyName.Allow.name());
 
     }
 
@@ -235,11 +237,12 @@ public class IpBucketService {
         BucketKafka bucketKafka = new BucketKafka();
         bucketKafka.setBucket(bucket);
         bucketKafka.setCache(cache);
+        bucketKafka.setType(type);
         bucketKafka.setServiceTransactionId(serviceSessionId);
         kafkaTemplate.send(SystemKafkaTopic.BUCKET_CACHE_IP_VALIDATION_UPDATE, JacksonUtils.write(bucketKafka));
     }
 
-    public void handle(BucketIpBlockRequest request) {
+    public void handleBlockedInit(BucketIpBlockRequest request) {
         log.info("Handling bucket ip block request: {}.", JacksonUtils.write(request));
         if (request.getAction() == null || request.getAction().isEmpty()) {
             return;
@@ -249,26 +252,26 @@ public class IpBucketService {
         response.setBucket(request.getBucket());
         response.setRequestId(request.getRequestId());
         response.setAction(request.getAction());
-        if ("add".equals(request.getAction())) {
+        if (BucketConstant.BucketPolicyAction.ADD.equals(request.getAction())) {
             this.add(request);
-        } else if ("remove".equals(request.getAction())) {
+        } else if (BucketConstant.BucketPolicyAction.REMOVE.equals(request.getAction())) {
             this.remove(request);
-        } else if ("update".equals(request.getAction())) {
+        } else if (BucketConstant.BucketPolicyAction.UPDATE.equals(request.getAction())) {
             this.update(request);
-        } else if ("list".equals(request.getAction())) {
+        } else if (BucketConstant.BucketPolicyAction.LIST.equals(request.getAction())) {
             response = this.list(request);
             response.setSuccess("SUCCESS");
-            response.setAction("list");
+            response.setAction(BucketConstant.BucketPolicyAction.LIST);
             response.setRequestId(request.getRequestId());
-        } else if ("updateBatch".equals(request.getAction())) {
+        } else if (BucketConstant.BucketPolicyAction.UPDATE_BATCH.equals(request.getAction())) {
             this.updateBatch(request);
-        } else if ("disable".equals(request.getAction())) {
+        } else if (BucketConstant.BucketPolicyAction.DISABLE.equals(request.getAction())) {
             this.disable(request);
         }
         kafkaTemplate.send(SystemKafkaTopic.BUCKET_BLOCKED_IP_SETTING_RESULT, JacksonUtils.write(response));
     }
 
-    public void handle(BucketIpAllowRequest request) {
+    public void handleBlockedInit(BucketIpAllowRequest request) {
         log.info("Handling bucket ip allow request: {}.", JacksonUtils.write(request));
         if (request.getAction() == null || request.getAction().isEmpty()) {
             return;
@@ -278,14 +281,14 @@ public class IpBucketService {
         response.setBucket(request.getBucket());
         response.setRequestId(request.getRequestId());
         response.setAction(request.getAction());
-        if ("updateBatch".equals(request.getAction())) {
+        if (BucketConstant.BucketPolicyAction.UPDATE_BATCH.equals(request.getAction())) {
             this.updateBatch(request);
-        } else if ("list".equals(request.getAction())) {
+        } else if (BucketConstant.BucketPolicyAction.LIST.equals(request.getAction())) {
             response = this.list(request);
             response.setSuccess("SUCCESS");
-            response.setAction("list");
+            response.setAction(BucketConstant.BucketPolicyAction.LIST);
             response.setRequestId(request.getRequestId());
-        }else if ("disable".equals(request.getAction())) {
+        }else if (BucketConstant.BucketPolicyAction.DISABLE.equals(request.getAction())) {
             this.disable(request);
         }
         kafkaTemplate.send(SystemKafkaTopic.BUCKET_ALLOWED_IP_SETTING_RESULT, JacksonUtils.write(response));
@@ -305,8 +308,32 @@ public class IpBucketService {
         IpBucketRepository.bucketBlockIpsNotIn.remove(request.getBucket());
     }
 
-    public void handle(BucketKafka bucketConfig) {
-        log.info("Handle bucket kafka request: {}.", JacksonUtils.write(bucketConfig));
+    public void handleAllowInit(BucketKafka bucketConfig) {
+        log.info("Handle allow ip bucket kafka request: {}.", JacksonUtils.write(bucketConfig));
+
+        if (serviceSessionId == null) {
+            log.info("service session id not set, skip handling bucket ip allow request.");
+        }
+        if (!serviceSessionId.equals(bucketConfig.getServiceTransactionId())) {
+            return;
+        }
+        if (bucketConfig.getBucket() == null || bucketConfig.getBucket().isEmpty()) {
+            return;
+        }
+        if (bucketConfig.getCache() == null) {
+            return;
+        }
+        BucketIpCache cache = new BucketIpCache();
+        if (bucketConfig.getCache().getIps() != null) {
+            cache.setIps(bucketConfig.getCache().getIps());
+        }
+        if (bucketConfig.getCache().getCidrs() != null) {
+            cache.setCidrs(bucketConfig.getCache().getCidrs());
+        }
+        IpBucketRepository.bucketBlockIpsNotIn.put(bucketConfig.getBucket(), cache);
+    }
+    public void handleBlockedInit(BucketKafka bucketConfig) {
+        log.info("Handle blocked ip bucket kafka request: {}.", JacksonUtils.write(bucketConfig));
 
         if (serviceSessionId == null) {
             log.info("service session id not set, skip handling bucket ip allow request.");
@@ -329,7 +356,6 @@ public class IpBucketService {
         }
         IpBucketRepository.bucketBlockedIps.put(bucketConfig.getBucket(), cache);
     }
-
     @Getter
     @Setter
     @JsonIgnoreProperties(ignoreUnknown = true)

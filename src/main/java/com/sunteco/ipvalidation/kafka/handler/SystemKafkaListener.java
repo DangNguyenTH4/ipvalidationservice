@@ -55,7 +55,7 @@ public class SystemKafkaListener {
             if (!systemEnvironment.equals(request.getEnv())) {
                 return;
             }
-            ipBucketService.handle(request);
+            ipBucketService.handleBlockedInit(request);
         } catch (Exception e) {
             logger.error("cannot handle message BUCKET_BLOCKED_IP_SETTING {}", message);
             e.printStackTrace();
@@ -69,21 +69,33 @@ public class SystemKafkaListener {
             if (!systemEnvironment.equals(request.getEnv())) {
                 return;
             }
-            ipBucketService.handle(request);
+            ipBucketService.handleBlockedInit(request);
         } catch (Exception e) {
             logger.error("cannot handle message BUCKET_ALLOWED_IP_SETTING {}", message);
             e.printStackTrace();
         }
     }
 
-    @KafkaListener(topics = SystemKafkaTopic.IP_VALIDATION_INSTANCE_INIT_HANDLE)
-    void handleIpInstanceInit(@Payload String message) {
+    @KafkaListener(topics = SystemKafkaTopic.IP_VALIDATION_INSTANCE_INIT_ALLOW_HANDLE)
+    void handleAllowIpInstanceInit(@Payload String message) {
         try {
-            logger.info("IP_VALIDATION_INSTANCE_INIT_HANDLE event message: {}", message);
+            logger.info("IP_VALIDATION_INSTANCE_INIT_ALLOW_HANDLE event message: {}", message);
             IpBucketService.BucketKafka request = JacksonUtils.readValue(message, IpBucketService.BucketKafka.class);
-            ipBucketService.handle(request);
+            ipBucketService.handleAllowInit(request);
         } catch (Exception e) {
-            logger.error("cannot handle message IP_VALIDATION_INSTANCE_INIT_HANDLE {}", message);
+            logger.error("cannot handle message IP_VALIDATION_INSTANCE_INIT_ALLOW_HANDLE {}", message);
+            e.printStackTrace();
+        }
+    }
+
+    @KafkaListener(topics = SystemKafkaTopic.IP_VALIDATION_INSTANCE_INIT_BLOCK_HANDLE)
+    void handleBlockIpInstanceInit(@Payload String message) {
+        try {
+            logger.info("IP_VALIDATION_INSTANCE_INIT_BLOCK_HANDLE event message: {}", message);
+            IpBucketService.BucketKafka request = JacksonUtils.readValue(message, IpBucketService.BucketKafka.class);
+            ipBucketService.handleBlockedInit(request);
+        } catch (Exception e) {
+            logger.error("cannot handle message IP_VALIDATION_INSTANCE_INIT_BLOCK_HANDLE {}", message);
             e.printStackTrace();
         }
     }
