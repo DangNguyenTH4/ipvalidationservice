@@ -4,7 +4,7 @@ import com.sunteco.ipvalidation.model.response.AuthorizedResponse;
 import com.sunteco.ipvalidation.model.response.Error;
 import com.sunteco.ipvalidation.model.response.Ok;
 import com.sunteco.ipvalidation.model.request.RequestDetectedInfo;
-import com.sunteco.ipvalidation.service.IpBucketService;
+import com.sunteco.ipvalidation.service.IpPolicyAbstractService;
 import com.sunteco.ipvalidation.utils.JacksonUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -19,55 +19,55 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("**")
 public class IpAuthController {
     @Autowired
-    private IpBucketService ipBucketService;
+    private IpPolicyAbstractService ipPolicyService;
 
     @PostMapping(produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> checkAuth(HttpServletRequest request) {
-        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        RequestDetectedInfo detectedInfo = ipPolicyService.detectRequestInfo(request);
         log.info("[POST] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
         return check(detectedInfo);
     }
 
     @GetMapping(produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> getCheck(HttpServletRequest request) {
-        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        RequestDetectedInfo detectedInfo = ipPolicyService.detectRequestInfo(request);
         log.info("[GET] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
         return check(detectedInfo);
     }
     @PutMapping(produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> putCheck(HttpServletRequest request) {
-        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        RequestDetectedInfo detectedInfo = ipPolicyService.detectRequestInfo(request);
         log.info("[PUT] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
         return check(detectedInfo);
     }
     @DeleteMapping(produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> deleteCheck(HttpServletRequest request) {
-        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        RequestDetectedInfo detectedInfo = ipPolicyService.detectRequestInfo(request);
         log.info("[DELETE] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
         return check(detectedInfo);
     }
 
     @PatchMapping(produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> patchCheck(HttpServletRequest request) {
-        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        RequestDetectedInfo detectedInfo = ipPolicyService.detectRequestInfo(request);
         log.info("[PATCH] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
         return check(detectedInfo);
     }
     @RequestMapping(method = RequestMethod.OPTIONS, produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> optionCheck(HttpServletRequest request) {
-        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        RequestDetectedInfo detectedInfo = ipPolicyService.detectRequestInfo(request);
         log.info("[OPTION] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
         return check(detectedInfo);
     }
 
     @RequestMapping(method = RequestMethod.HEAD, produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<AuthorizedResponse> headCheck(HttpServletRequest request) {
-        RequestDetectedInfo detectedInfo = ipBucketService.detectIp(request);
+        RequestDetectedInfo detectedInfo = ipPolicyService.detectRequestInfo(request);
         log.info("[HEAD] Check bucket: {},  ip: {}, fullPath: {}", detectedInfo.getBucket(), detectedInfo.getIp(), detectedInfo.getRequestUri());
         return check(detectedInfo);
     }
     private ResponseEntity<AuthorizedResponse> check(RequestDetectedInfo detectedInfo){
-        if (ipBucketService.isBlocked(detectedInfo)) {
+        if (ipPolicyService.isBlocked(detectedInfo)) {
             log.debug("Denied request: {}", JacksonUtils.write(detectedInfo));
             return returnXmlForbidden(detectedInfo);
         } else {

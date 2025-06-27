@@ -10,6 +10,7 @@ import com.sunteco.ipvalidation.model.request.BucketIpBlockRequest;
 import com.sunteco.ipvalidation.model.request.RequestDetectedInfo;
 import com.sunteco.ipvalidation.model.response.BucketIpAllowResponse;
 import com.sunteco.ipvalidation.repository.IpBucketRepository;
+import com.sunteco.ipvalidation.repository.IpDomainPolicyRepository;
 import com.sunteco.ipvalidation.utils.JacksonUtils;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,15 +27,14 @@ import java.util.Map;
 import java.util.Set;
 
 @Slf4j
-public class IpBucketService implements IpPolicyAbstractService{
+public class IpDomainPolicyService implements IpPolicyAbstractService{
     @Autowired
     private IpV4RangeService ipV4RangeService;
-    @Value("${system.endpoint.primary:s3.sunteco.cloud, localhost:8080}")
-    private Set<String> primaryDomain ;
-
     @Autowired
     private KafkaTemplate kafkaTemplate;
 
+    @Value("${system.endpoint.primary:s3.sunteco.cloud, localhost:8080}")
+    private Set<String> primaryDomain ;
     @PostConstruct
     public void init() {
         log.info("Initializing IpBucketService, send signal get config");
@@ -229,7 +229,6 @@ public class IpBucketService implements IpPolicyAbstractService{
 
     }
 
-
     private void triggerBucketIpCacheUpdate(String bucket, IpCache cache, String type) {
         log.info("Bucket ip cache update triggered.");
         log.info("Bucket {}, ips {}", bucket, JacksonUtils.write(cache));
@@ -366,30 +365,30 @@ public class IpBucketService implements IpPolicyAbstractService{
 
     private boolean checkIsBlockWithListBlockIps(RequestDetectedInfo request) {
         String ip = request.getIp();
-        String bucket = request.getBucket();
+        String key = this.getKeyCheck(request);
         boolean blocked = false;
-        if ("".equals(bucket)) {
+        if ("".equals(key)) {
             blocked = false; // khong detect duoc bucket
             return blocked;
         }
         // If not setup before, it mean allow all
-        if (!denyList().containsKey(bucket)) {
+        if (!denyList().containsKey(key)) {
             log.debug("Not setup before so allow");
             blocked = false;
             return blocked;
         }
 
 
-        if (denyList().get(bucket).getIps() != null
-                && denyList().get(bucket).getIps().contains(ip)) {
+        if (denyList().get(key).getIps() != null
+                && denyList().get(key).getIps().contains(ip)) {
             blocked = true;
-            throw new IpBlockedException(String.format("IP %s is blocked because it contain in block list, when access bucket: %s",ip, bucket));
+            throw new IpBlockedException(String.format("IP %s is blocked because it contain in block list, when access bucket: %s",ip, key));
         }
 
-        if(denyList().get(bucket).getCidrs() != null) {
-            for (String cidr : denyList().get(bucket).getCidrs()) {
+        if(denyList().get(key).getCidrs() != null) {
+            for (String cidr : denyList().get(key).getCidrs()) {
                 if (ipV4RangeService.isInRange(ip, cidr)) {
-                    throw new IpBlockedException(String.format("IP %s is blocked because it is part of cidr: %ss, when access bucket: %s",ip, cidr, bucket));
+                    throw new IpBlockedException(String.format("IP %s is blocked because it is part of cidr: %ss, when access bucket: %s",ip, cidr, key));
                 }
             }
         }
@@ -397,26 +396,26 @@ public class IpBucketService implements IpPolicyAbstractService{
     }
     private boolean checkIsBlockWithNotInIpAddress(RequestDetectedInfo request) {
         String ip = request.getIp();
-        String bucket = request.getBucket();
+        String key = this.getKeyCheck(request);
         //not set
-        if(!allowList().containsKey(bucket)) {
+        if(!allowList().containsKey(key)) {
             return false;
         }
 
-        if (allowList().get(bucket).getIps() != null
-                && allowList().get(bucket).getIps().contains(ip)) {
+        if (allowList().get(key).getIps() != null
+                && allowList().get(key).getIps().contains(ip)) {
             return false;
         }
 
-        if(allowList().get(bucket).getCidrs() != null) {
-            for (String cidr : allowList().get(bucket).getCidrs()) {
+        if(allowList().get(key).getCidrs() != null) {
+            for (String cidr : allowList().get(key).getCidrs()) {
                 if (ipV4RangeService.isInRange(ip, cidr)) {
                     return false;
                 }
             }
         }
 
-        throw new IpBlockedException(String.format("IP %s is blocked because not in list rejects, when access bucket: %s",ip, bucket));
+        throw new IpBlockedException(String.format("IP %s is blocked because not in list rejects, when access bucket: %s",ip, key));
 
     }
 
@@ -428,53 +427,19 @@ public class IpBucketService implements IpPolicyAbstractService{
         return request.getRemoteAddr();
     }
 
-    private String extractBucket(HttpServletRequest request) {
-        String host = request.getHeader("host");
-        String bucket = "";
-        if (isPathStyle(host)) {
-            bucket = getBucketFromPath(request);
-        } else {
-            bucket = getBucketFromDomain(host);
-        }
-        return bucket;
-    }
-
-    private boolean isPathStyle(String domain) {
-        return primaryDomain.contains(domain);
-    }
-
-    private String getBucketFromPath(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        log.info("Path {}", path);
-        if (path == null || path.isEmpty() || path.equals("/")) {
-            return "";
-        }
-        if (path.startsWith("/")) {
-            path = path.substring(1);
-        }
-        String[] parts = path.split("/");
-        log.info("Parts {}", JacksonUtils.write(parts));
-        return parts[0];
-    }
-
-    private String getBucketFromDomain(String domain) {
-        return null;
-    }
     @Override
     public RequestDetectedInfo detectRequestInfo(HttpServletRequest request) {
         log(request);
         String ip = extractClientIp(request);
-        String bucket = extractBucket(request);
         RequestDetectedInfo detectedInfo = new RequestDetectedInfo();
         detectedInfo.setIp(ip);
-        detectedInfo.setBucket(bucket);
         detectedInfo.setRequestId(request.getRequestId());
         detectedInfo.setHost(request.getHeader("host"));
         detectedInfo.setRequestUri(request.getRequestURL().toString());
         return detectedInfo;
     }
 
-    private static void log(HttpServletRequest request) {
+    public static void log(HttpServletRequest request) {
         log.debug("========== 🐾 HTTP REQUEST DEBUG INFO ==========");
 
         // 🎯 IP
@@ -518,9 +483,12 @@ public class IpBucketService implements IpPolicyAbstractService{
         log.debug("===============================================");
     }
     private Map<String, IpCache> allowList(){
-        return IpBucketRepository.bucketBlockIpsNotIn;
+        return IpDomainPolicyRepository.allowList;
     }
     private Map<String, IpCache> denyList(){
-        return IpBucketRepository.bucketBlockedIps;
+        return IpDomainPolicyRepository.denyList;
+    }
+    private String getKeyCheck(RequestDetectedInfo request) {
+        return request.getHost();
     }
 }

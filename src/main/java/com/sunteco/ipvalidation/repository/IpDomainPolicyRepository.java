@@ -7,17 +7,18 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
 @Service
-public class IpBucketRepository {
+public class IpDomainPolicyRepository {
 
     private static final Set<String> ALLOWED_IPS = Set.of(
             "192.168.1.10", "10.0.0.5", "127.0.0.1", "192.168.1.198"
     );
-    public static final Map<String, IpCache> bucketBlockedIps = new HashMap<>();
+    public static final Map<String, IpCache> allowList = new HashMap<>();
     /**
      * Like AWS Deny all IP, if not in. If the client ip in side range, it will allow
      */
-    public static final Map<String, IpCache> bucketBlockIpsNotIn = new HashMap<>();
+    public static final Map<String, IpCache> denyList = new HashMap<>();
     static {
 //        bucketAllowedIps.put("abc", new BucketIpCache(ALLOWED_IPS));
 //        bucketAllowIps.put("def", new HashSet<>());

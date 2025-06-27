@@ -17,9 +17,11 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.sunteco.ipvalidation.constant.SystemKafkaTopic;
+import com.sunteco.ipvalidation.model.domain.BucketKafka;
 import com.sunteco.ipvalidation.model.request.BucketIpAllowRequest;
 import com.sunteco.ipvalidation.model.request.BucketIpBlockRequest;
 import com.sunteco.ipvalidation.service.IpBucketService;
+import com.sunteco.ipvalidation.service.IpPolicyAbstractService;
 import com.sunteco.ipvalidation.utils.JacksonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +39,7 @@ public class SystemKafkaListener {
 
     Logger logger = LoggerFactory.getLogger(this.getClass());
     @Autowired
-    private IpBucketService ipBucketService;
+    private IpPolicyAbstractService ipPolicyAbstractService;
     private ObjectMapper objectMapper = new ObjectMapper();
     @Value("${system.env}")
     private String systemEnvironment;
@@ -55,7 +57,7 @@ public class SystemKafkaListener {
             if (!systemEnvironment.equals(request.getEnv())) {
                 return;
             }
-            ipBucketService.handleBlockedInit(request);
+            ipPolicyAbstractService.handleBlockedSetting(request);
         } catch (Exception e) {
             logger.error("cannot handle message BUCKET_BLOCKED_IP_SETTING {}", message);
             e.printStackTrace();
@@ -69,7 +71,7 @@ public class SystemKafkaListener {
             if (!systemEnvironment.equals(request.getEnv())) {
                 return;
             }
-            ipBucketService.handleBlockedInit(request);
+            ipPolicyAbstractService.handleAllowedSetting(request);
         } catch (Exception e) {
             logger.error("cannot handle message BUCKET_ALLOWED_IP_SETTING {}", message);
             e.printStackTrace();
@@ -80,8 +82,8 @@ public class SystemKafkaListener {
     void handleAllowIpInstanceInit(@Payload String message) {
         try {
             logger.info("IP_VALIDATION_INSTANCE_INIT_ALLOW_HANDLE event message: {}", message);
-            IpBucketService.BucketKafka request = JacksonUtils.readValue(message, IpBucketService.BucketKafka.class);
-            ipBucketService.handleAllowInit(request);
+            BucketKafka request = JacksonUtils.readValue(message, BucketKafka.class);
+            ipPolicyAbstractService.handleAllowInit(request);
         } catch (Exception e) {
             logger.error("cannot handle message IP_VALIDATION_INSTANCE_INIT_ALLOW_HANDLE {}", message);
             e.printStackTrace();
@@ -92,8 +94,8 @@ public class SystemKafkaListener {
     void handleBlockIpInstanceInit(@Payload String message) {
         try {
             logger.info("IP_VALIDATION_INSTANCE_INIT_BLOCK_HANDLE event message: {}", message);
-            IpBucketService.BucketKafka request = JacksonUtils.readValue(message, IpBucketService.BucketKafka.class);
-            ipBucketService.handleBlockedInit(request);
+            BucketKafka request = JacksonUtils.readValue(message, BucketKafka.class);
+            ipPolicyAbstractService.handleBlockedSetting(request);
         } catch (Exception e) {
             logger.error("cannot handle message IP_VALIDATION_INSTANCE_INIT_BLOCK_HANDLE {}", message);
             e.printStackTrace();

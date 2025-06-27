@@ -11,11 +11,11 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class BucketIpCache {
+public class IpCache {
     private Set<String> ips;
     private Set<String> cidrs;
 //    private Set<String> ranges
-    public BucketIpCache(Set<String> ips) {
+    public IpCache(Set<String> ips) {
         this.ips = ips;
     }
 }
